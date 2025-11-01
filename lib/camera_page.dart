@@ -1,77 +1,92 @@
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:secure_qr/results_page.dart'; // Import the results page
 
-class CameraPage extends StatefulWidget{
-  final ImageSource? initialImageSource;
-  const CameraPage({super.key, this.initialImageSource});
+class CameraPage extends StatefulWidget {
+  const CameraPage({super.key});
 
   @override
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage>{
-  File? image;
-  final picker = ImagePicker();
+class _CameraPageState extends State<CameraPage> {
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialImageSource != null) {
-      pickImage(widget.initialImageSource!);
+  Future<void> _analyzeUrl(String url) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // This is the old backend URL. We will replace this with the Firebase function call later.
+    final backendUrl = Uri.parse('http://10.0.2.2:3000/analyze');
+
+    try {
+      final response = await http.post(
+        backendUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'url': url}),
+      );
+
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (!context.mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ResultsPage(scannedUrl: result),
+          ),
+        );
+      } else {
+        // TODO: Show an error message to the user.
+        debugPrint('Backend error: ${response.body}');
+      }
+    } catch (e) {
+      // TODO: Show an error message to the user.
+      debugPrint('Failed to connect to backend: $e');
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
-  Future pickImage(ImageSource source) async{
-    final pickedImage = await picker.pickImage(source: source);
-
-    if (pickedImage != null){
-      setState(() {
-        image = File(pickedImage.path);
-      });
-    }
-  }
-
   @override
-Widget build (BuildContext context){
-  return Scaffold(
-    appBar: AppBar(
-      title: const Text('Camera'),
-      centerTitle: true,
-    ),
-    body:  Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scan QR Code')),
+      body: Stack(
         children: [
-          const Text('Camera Page'),
-      SizedBox(
-        height: 200,
-        width: 200,
-        child: image != null ?
-             Image.file(image!)
-            :
-           const Center (child: Text("no image selected "))
-      ),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ElevatedButton(
-            onPressed: (){
-              pickImage(ImageSource.camera);
+          MobileScanner(
+            onDetect: (capture) {
+              if (_isLoading) return;
+
+              final Barcode barcode = capture.barcodes.first;
+              final String? scannedValue = barcode.rawValue;
+
+              if (scannedValue != null) {
+                final uri = Uri.tryParse(scannedValue);
+                bool isWebUrl =
+                    uri != null &&
+                    (uri.isScheme('http') || uri.isScheme('https'));
+
+                if (isWebUrl) {
+                  _analyzeUrl(scannedValue);
+                } else {
+                  // TODO: Display non-URL content to the user.
+                  debugPrint('Scanned content is not a URL: $scannedValue');
+                }
+              }
             },
-            child: const Text('Camera'),
           ),
-          ElevatedButton(
-            onPressed: (){
-              pickImage(ImageSource.gallery);
-            },
-            child: const Text('Gallery'),
-          ),
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 }
