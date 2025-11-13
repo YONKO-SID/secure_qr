@@ -1,7 +1,3 @@
-# Welcome to Cloud Functions for Firebase for Python!
-# To learn more about Cloud Functions, see the documentation:
-# https://firebase.google.com/docs/functions/beta
-
 import requests
 from firebase_admin import initialize_app
 from firebase_functions import https_fn
@@ -16,8 +12,8 @@ initialize_app()
 def checkUrl(req: https_fn.CallableRequest) -> any:
     """Receives a URL from the client, analyzes it using Google Safe Browsing API, and returns a verdict."""
 
-    # --- IMPORTANT: PASTE YOUR API KEY HERE ---
-    # For a real application, use environment variables to keep this key secret.
+    
+ 
     GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
     # ------------------------------------------
 
